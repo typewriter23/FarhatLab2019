@@ -1,5 +1,3 @@
-# Theoretically, this script should be able to be modified to run any command line exe file
-
 import sys, os
 # # ONLY FOR COMPUTERS THAT ARE {1.) JERRY'S, 2.) WINDOWS} 
 # bashDir = "C:/Users/typew/Documents/GitHub/FarhatLab/sratoolkit.2.9.6-1-win64/bin/{0}" # 0 is placeholder for exe
@@ -10,18 +8,16 @@ import sys, os
 # # ---------- END Windows information -------------------------------
 
 # idListLocation = "/n/data1/hms/dbmi/farhat/Jerry/3SamplePaperRunIDs.txt" # Location of list of SRA IDs
-idListLocation = "1000SampleRunIDs.txt" # Location of list of SRA IDs
-# ONLY FOR COMPUTERS THAT ARE {1.) Linux, 2.) O2} 
+idListLocation = os.path.join(cwd, sys.args[1]) # First argument should be the idList location
+
 cwd = os.getcwd() # Gets the current directory in O2 (under the assumption that my data folder will be relatively
                         # close to my current folder
                         
-
-#outputFolder = "/n/data1/hms/dbmi/farhat/Jerry/inputs/"
-outputFolder = "/n/scratch2/jy250/1000SampleTest"
+outputFolder = sys.args[2] # Second argument should be the output directoty # "/n/scratch2/jy250/eQTL_Analysis/19_7_31"
     # "/n/data1/hms/dbmi/farhat/Jerry/3SampleFastqs" # Send to much larger scratch folder
 bashDir = "/n/data1/hms/dbmi/farhat/Jerry/FarhatLab2019/sratoolkit.2.9.6-1-centos_linux64/bin/{0}" # Location of sratoolkit's fastq-dump.exe command
                                                                                                     # {0} is placeholder for exe file
-slurmCommand = 'sbatch -p short -c 1 -t 0-11:59 --mem=1G --mail-user=Jerry_Yang@hms.harvard.edu --wrap="{0}"'
+slurmCommand = 'sbatch -p short -c 1 -t 0-01:59 --mem=1G --mail-user=Jerry_Yang@hms.harvard.edu --wrap="{0}"'
 exe = "fastq-dump.2.9.6 --split-files --outdir '{1}' {0} " 
         # {0} is placeholder for SRA run id
         # {1} is a placeholder for output directory

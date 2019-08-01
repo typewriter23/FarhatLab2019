@@ -6,7 +6,7 @@ import numpy as np
 import shutil
 import ntpath
 from JerryPipeToolbox import *
-from jankyPipe import *
+
 # JerryPipe, but with an added QC step that trims reads
     # Designed to process RNA sequencing data
 
@@ -31,37 +31,30 @@ envName = "JerryEnv" # Environment with all of the packages pre-loaded
     # Packages included: {bwa, java, picard, pilon, samtools, ...}
 refGenome = "/n/data1/hms/dbmi/farhat/Jerry/References/GCF_000195955.2_ASM19595v2_genomic.fasta"
     # Absolute path to the H37RV genome
-scratchDir = "/n/scratch2/jy250/eQTL_Analysis/19_7_31"
-# samFolder = "/n/scratch2/jy250/eQTL_Analysis/19_7_31/samFiles/" 
-# bamFolder = "/n/scratch2/jy250/eQTL_Analysis/19_7_31/bamFiles/" 
-# cleanedFastqFolder = "/n/scratch2/jy250/eQTL_Analysis/19_7_31/cleanedFastqs/"
-inputFolder = "/n/scratch2/jy250/eQTL_Analysis/19_7_31" # "/n/scratch2/jy250/"  # "/n/scratch2/jy250/test100/" # 
-# vcfFolder = "/n/scratch2/jy250/1000SampleTest"
-slurmFolder = "/n/scratch2/jy250/slurmLogs/"
-
-experimentFolder = "/n/scratch2/jy250/eQTL_Analysis/19_7_31"
+scratchDir = "/n/scratch2/jy250/1000SampleTest"
+samFolder = "/n/scratch2/jy250/1000SampleTest/samFiles/" 
+bamFolder = "/n/scratch2/jy250/1000SampleTest/bamFiles/" 
+cleanedFastqFolder = "/n/scratch2/jy250/1000SampleTest/cleanedFastqs/"
+inputFolder = "/n/scratch2/jy250/1000SampleTest"  # "/n/scratch2/jy250/test100/" # 
+vcfFolder = "/n/scratch2/jy250/1000SampleTest"
+slurmFolder = "/n/scratch2/jy250/1000SampleTest/slurmLogs/"
+countsFolder = "/n/scratch2/jy250/1000SampleTest/counts/"
+lineageFolder = "/n/scratch2/jy250/lineageCalls/"
 # These functions will take names of files, and generate the coresponding 
         # name of the new file
         # e.g. abc.fasta ==> abc.sam
         
-def genSamName(fastq, experimentFolder): 
+def genSamName(fastq): 
     """Function to systematically generate absolute paths to 
         sam file names from FASTQ file names"""
-    sampleFolder = os.path.join(experimentFolder, genSampleID(fastq))
-    return os.path.join(sampleFolder, genSampleID(fastq) + ".sam")
+    return os.path.join(samFolder, os.path.splitext(fastq)[0] + ".sam")
     # return os.path.join(samFolder, ntpath.split(fastq)[1].replace(".fastq", ".sam"))
 def genBamName(sam):
-    sampleFolder = os.path.join(experimentFolder, genSampleID(fastq))
-    return os.path.join(sampleFolder, genSampleID(fastq) + ".bam")
-    # return os.path.join(bamFolder, os.path.splitext(sam)[0] + ".bam")
+    return os.path.join(bamFolder, os.path.splitext(sam)[0] + ".bam")
 def genVCFName(bam):
-    sampleFolder = os.path.join(experimentFolder, genSampleID(fastq))
-    return os.path.join(sampleFolder, genSampleID(fastq))
-    # return os.path.join(vcfFolder, os.path.splitext(bam)[0])
+    return os.path.join(vcfFolder, os.path.splitext(bam)[0])
 def genMetricsName(drbam):
-    sampleFolder = os.path.join(experimentFolder, genSampleID(fastq))
-    return os.path.join(sampleFolder, genSampleID(fastq) + ".metrics")
-    # return os.path.join(vcfFolder, os.path.splitext(drbam)[0] + ".metrics")
+    return os.path.join(vcfFolder, os.path.splitext(drbam)[0] + ".metrics")
 def genBaseName(fileName):
     """Removes the '_1' and '.fastq' extentsions from a filename"""
     return fileName.split("_")[0].split(".")[0]
@@ -71,17 +64,7 @@ def genSampleID(path):
         https://stackoverflow.com/questions/8384737/extract-file-name-from-path-no-matter-what-the-os-path-format"""
     head, tail = ntpath.split(path)
     result =  tail or ntpath.basename(head)
-    return genBaseName(result.split(".")[0]) # Gets just the sample name, cleans out the ".cleaned.[EXT]"
-# def genBaseName(fileName):
-    # """Removes the '_1' and '.fastq' extentsions from a filename"""
-    # return fileName.split("_")[0].split(".")[0]
-# def genSampleID(path):
-    # """Generates the sampleID from the filename given
-        # Code partially taken from StackOverflow:
-        # https://stackoverflow.com/questions/8384737/extract-file-name-from-path-no-matter-what-the-os-path-format"""
-    # head, tail = ntpath.split(path)
-    # result = tail or ntpath.basename(head)
-    # return result.split(".")[0] # Gets just the sample name, cleans out the ".cleaned.[EXT]"
+    return result.split(".")[0] # Gets just the sample name, cleans out the ".cleaned.[EXT]"
 def genSLURMName(path):
     return os.path.join(slurmFolder, os.path.splitext(path)[0] + ".slurm")
 # def genSamName(fastq): 
@@ -127,9 +110,36 @@ scratch_dir = "/n/scratch2/jy250/"
 # def setUpSLURM(commands_list):
     # Nothing
     # Adds the heading of a slurm script, does nothing for now
+def runQC(commands_list, fastq, fastqPaired = None, minQual = 10):
+    """ Quality control steps, including: {prinseq read trimming}"""
+    # TODO: Add QC steps
+    # TODO: Add Kraken
+    return trimReads(commands_list, fastq, fastqPaired, minQual)
     
-   
-
+def trimReads(commands_list, fastq, fastqPaired = None, minQual = 5):
+    """Function to trim reads using prinseq
+        
+        Takes in a (pair of) FASTQ file(s) and appends to commands_list 
+         the commands needed to trim each read of the files to a minimum phred 
+         score of MINQUAL
+         
+        Outputs the name of the cleaned FASTQ file or files"""
+         
+    leftMinQual = minQual
+    rightMinQual = minQual
+    outputFile = os.path.join(inputFolder, genBaseName(fastq) + ".cleaned") # Give it an absolute path # TODO: HARDCODED! BAD
+        #TODO: Hardcoded to write into the input folder => change later!!!
+    if fastqPaired is not None:
+        trimCommand = "prinseq-lite.pl -trim_qual_left {leftMinQual} -trim_qual_right {rightMinQual} \
+                -out_good {outputFileName} -fastq {fastq1} -fastq2 {fastqPaired}".format(leftMinQual = leftMinQual, 
+                rightMinQual = rightMinQual, outputFileName = outputFile, fastq1= fastq, fastqPaired = fastqPaired)
+        commands_list.append(trimCommand)
+    else:
+        trimCommand = "prinseq-lite.pl -trim_qual_left {leftMinQual} -trim_qual_right {rightMinQual} \
+                -out_good {outputFileName} -fastq {fastq1}".format(leftMinQual = leftMinQual, 
+                rightMinQual = rightMinQual, outputFileName = outputFile, fastq1= fastq)
+        commands_list.append(trimCommand)
+    return genCleanedOutputName(outputFile, paired = True)
     
 def Launch_JerryPipe(fastqFile, pairedFile = None, minQ = 10):
     '''
@@ -156,7 +166,8 @@ def Launch_JerryPipe(fastqFile, pairedFile = None, minQ = 10):
     
     # setUpSLURM(commands_list) # Probably delete later, set up the requirements for the slurm script to run
     prepConda(commands_list)
-    fastqFileCleaned = runQC(commands_list, fastqFile, pairedFile, minQual = minQ)
+    fastqFileCleaned = [fastqFile, pairedFile] # runQC(commands_list, fastqFile, pairedFile, minQual = minQ)
+    #Skipping cleaning steps b/c we're only working with cleaned data
     
     # We just want to keep track of the names
     #TODO: Add functionality for paired end reads
@@ -175,12 +186,12 @@ def Launch_JerryPipe(fastqFile, pairedFile = None, minQ = 10):
    
 for fastqPair in listOfFastqs:
     # Handling for non-paired end data
-    # try:
-    fileName = os.path.join(inputFolder, fastqPair[0])
-    pairedFile = os.path.join(inputFolder, fastqPair[1])
-    # Launch_JerryPipe(fileName, pairedFile)
-    Launch_JankyPipe(fileName, pairedFile, genSampleID(fileName), experimentFolder, scratchDir , slurmFolder)
-    # except IOError: 
-        # fileName = os.path.join(inputFolder, fastqPair[0])
-        # pairedFile = os.path.join(inputFolder, fastqPair[1])
-        # # Launch_JerryPipe(fileName)
+    try:
+        fileName = os.path.join(inputFolder, fastqPair[0])
+        pairedFile = os.path.join(inputFolder, fastqPair[1])
+        Launch_JerryPipe(fileName, pairedFile)
+    except IOError: 
+        fileName = os.path.join(inputFolder, fastqPair[0])
+        pairedFile = os.path.join(inputFolder, fastqPair[1])
+        Launch_JerryPipe(fileName)
+# Launch_JerryPipe("/n/scratch2/jy250/fastqFiles/SRR6176430_1.fastq")

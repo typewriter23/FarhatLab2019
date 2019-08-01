@@ -31,7 +31,7 @@ def genSampleID(path):
         https://stackoverflow.com/questions/8384737/extract-file-name-from-path-no-matter-what-the-os-path-format"""
     head, tail = ntpath.split(path)
     result =  tail or ntpath.basename(head)
-    return result.split(".")[0] # Gets just the sample name, cleans out the ".cleaned.[EXT]"
+    return genBaseName(result.split(".")[0]) # Gets just the sample name, cleans out the ".cleaned.[EXT]"
 def genLinFileName(vcfFile):
     """Generates the file location to which to write the lineage information
         "XXX.cleaned_1.vcf" => XXX.lineage.txt"""
@@ -85,20 +85,37 @@ def genReadcountsName(bamFile):
 # slurmFolder = "/n/scratch2/jy250/test100/slurmLogs/"
 # 
 
+# envName = "JerryEnv" # Environment with all of the packages pre-loaded
+    # # Packages included: {bwa, java, picard, pilon, samtools, ...}
+# refGenome = "/n/data1/hms/dbmi/farhat/Jerry/References/GCF_000195955.2_ASM19595v2_genomic.fasta"
+    # # Absolute path to the H37RV genome
+# scratchDir = "/n/scratch2/jy250/22SampleTest/"
+# samFolder = "/n/scratch2/jy250/22SampleTest/samFiles/" 
+# bamFolder = "/n/scratch2/jy250/22SampleTest/bamFiles/" 
+# cleanedFastqFolder = "/n/scratch2/jy250/22SampleTest/cleanedFastqs/"
+# inputFolder = "/n/scratch2/jy250/22SampleTest/"  # "/n/scratch2/jy250/test100/" # 
+# vcfFolder = "/n/scratch2/jy250/22SampleTest/vcfFiles/"
+# countsFolder = "/n/scratch2/jy250/22SampleTest/counts/"
+# lineageFolder = "/n/scratch2/jy250/lineageCalls"
+# slurmFolder = "/n/scratch2/jy250/22SampleTest/slurmLogs/"
+
+
 envName = "JerryEnv" # Environment with all of the packages pre-loaded
     # Packages included: {bwa, java, picard, pilon, samtools, ...}
 refGenome = "/n/data1/hms/dbmi/farhat/Jerry/References/GCF_000195955.2_ASM19595v2_genomic.fasta"
     # Absolute path to the H37RV genome
-scratchDir = "/n/scratch2/jy250/22SampleTest/"
-samFolder = "/n/scratch2/jy250/22SampleTest/samFiles/" 
-bamFolder = "/n/scratch2/jy250/22SampleTest/bamFiles/" 
-cleanedFastqFolder = "/n/scratch2/jy250/22SampleTest/cleanedFastqs/"
-inputFolder = "/n/scratch2/jy250/22SampleTest/"  # "/n/scratch2/jy250/test100/" # 
-vcfFolder = "/n/scratch2/jy250/22SampleTest/vcfFiles/"
-slurmFolder = "/n/scratch2/jy250/22SampleTest/slurmLogs/"
-countsFolder = "/n/scratch2/jy250/22SampleTest/counts/"
+# scratchDir = "/n/scratch2/jy250/1000SampleTest"
+samFolder = "/n/scratch2/jy250/1000SampleTest/samFiles/" 
+bamFolder = "/n/scratch2/jy250/1000SampleTest/bamFiles/" 
+cleanedFastqFolder = "/n/scratch2/jy250/1000SampleTest/cleanedFastqs/"
+inputFolder = "/n/scratch2/jy250/eQTL_Analysis/19_7_31"  # "/n/scratch2/jy250/test100/" # 
+vcfFolder = "/n/scratch2/jy250/1000SampleTest"
+slurmFolder = "/n/scratch2/jy250/slurmLogs/"
+
+countsFolder = "/n/scratch2/jy250/eQTL_Analysis/19_7_31/counts/"
 lineageFolder = "/n/scratch2/jy250/lineageCalls"
 
+experimentFolder = "/n/scratch2/jy250/eQTL_Analysis/19_7_31"
 def genPairedFileName(fileName):
     """Creates the name of the paired end file, assuming that one is given a file that ends with "_1.fastq":
         XYZ_1.fastq => XYZ_2.fastq"""
@@ -116,8 +133,69 @@ def prepConda(commands_list, envName = envName):
     commands_list.append('source deactivate') # Removes any pre-existing conda environments
     commands_list.append('source activate {eName}'.format(eName = envName))
 
+def runQC(commands_list, fastq, fastqPaired = None, minQual = 10, sampleFolder = "./"):
+    """ Quality control steps, including: {prinseq read trimming}"""
+    # TODO: Add QC steps
+    # TODO: Add Kraken
+    return trimReads(commands_list, fastq, fastqPaired, minQual)
 
+# def trimReads(commands_list, fastq, fastqPaired = None, minQual = 10, sampleFolder = "./"):
+    # """Function to trim reads using fastp 
+        # (https://github.com/farhat-lab/metatools_ncbi)
+        
+        # # Takes in a (pair of) FASTQ file(s) and appends to commands_list 
+         # # the commands needed to trim each read of the files to a minimum phred 
+         # # score of MINQUAL
+    
+        # # Outputs the name of the cleaned FASTQ file or files"""
+    # leftMinQual = minQual
+    # rightMinQual = minQual
+    # sampleFolder = os.path.join(experimentFolder, genSampleID(fastq))
+    # outputFile = os.path.join(sampleFolder, genBaseName(fastq) + ".cleaned") # Give it an absolute path # TODO: HARDCODED! BAD
+        # #TODO: Hardcoded to write into the input folder => change later!!!
+    # if fastqPaired is not None: # Paired end handling
+        # trimCommand = "prinseq-lite.pl -trim_qual_left {leftMinQual} -trim_qual_right {rightMinQual} \
+                # -out_good {outputFileName} -fastq {fastq1} -fastq2 {fastqPaired}".format(leftMinQual = leftMinQual, 
+                # rightMinQual = rightMinQual, outputFileName = outputFile, fastq1= fastq, fastqPaired = fastqPaired)
+        # commands_list.append(trimCommand)
+    # else:
+        # trimCommand = "prinseq-lite.pl -trim_qual_left {leftMinQual} -trim_qual_right {rightMinQual} \
+                # -out_good {outputFileName} -fastq {fastq1}".format(leftMinQual = leftMinQual, 
+                # rightMinQual = rightMinQual, outputFileName = outputFile, fastq1= fastq)
+        # commands_list.append(trimCommand)    
 
+        
+def trimReads(commands_list, fastq, fastqPaired = None, minQual = 5):
+    """Function to trim reads using prinseq
+        
+        Takes in a (pair of) FASTQ file(s) and appends to commands_list 
+         the commands needed to trim each read of the files to a minimum phred 
+         score of MINQUAL
+         
+        Outputs the name of the cleaned FASTQ file or files"""
+         
+    leftMinQual = minQual
+    rightMinQual = minQual
+    sampleFolder = os.path.join(experimentFolder, genSampleID(fastq))
+    outputFile = os.path.join(sampleFolder, genBaseName(fastq) + ".cleaned") # Incomplete prefix of pprinseq to take in
+    
+    if fastqPaired is not None:
+        trimCommand = "prinseq-lite.pl -trim_qual_left {leftMinQual} -trim_qual_right {rightMinQual} \
+                -out_good {outputFileName} -fastq {fastq1} -fastq2 {fastqPaired}".format(leftMinQual = leftMinQual, 
+                rightMinQual = rightMinQual, outputFileName = outputFile, fastq1= fastq, fastqPaired = fastqPaired)
+        commands_list.append(trimCommand)
+        return genCleanedOutputName(outputFile, paired = False)
+    else:
+        trimCommand = "prinseq-lite.pl -trim_qual_left {leftMinQual} -trim_qual_right {rightMinQual} \
+                -out_good {outputFileName} -fastq {fastq1}".format(leftMinQual = leftMinQual, 
+                rightMinQual = rightMinQual, outputFileName = outputFile, fastq1= fastq)
+        commands_list.append(trimCommand)
+        return genCleanedOutputName(outputFile, paired = True)
+    # head, tail = ntpath.split(outputFile)
+    # fileName = tail or ntpath.basename(head)
+    # return os.path.join(sampleFolder, fileName)
+   
+    
 def genCleanedOutputName(outputFile, paired = False):
     """Generates the output filename that Prinseq would generate
         given an output file prefix 
@@ -181,15 +259,15 @@ def submitSlurmScript(commands_list, outputName = None):
         the o2 cluster using Jerry's credentials and 
          default values of memory and time
       
-    Default Memory: 20G
+    Default Memory: 60G
     Default Time: 12 hrs"""
     longString = ";".join(commands_list)
-    # print(longString.replace(";", "\n"))
+    print(longString.replace(";", "\n"))
     if outputName is not None:
-        sCommand = 'sbatch -p short -c 1 -t 0-11:59 --mem=20G --mail-user=Jerry_Yang@hms.harvard.edu \
+        sCommand = 'sbatch -p short -c 1 -t 0-11:59 --mem=60G --mail-user=Jerry_Yang@hms.harvard.edu \
                 --output {outputSlurm} --wrap="{commandString}"'.format(commandString = longString, outputSlurm = outputName)
     else: 
-        sCommand = 'sbatch -p short -c 1 -t 0-11:59 --mem=20G --mail-user=Jerry_Yang@hms.harvard.edu \
+        sCommand = 'sbatch -p short -c 1 -t 0-11:59 --mem=60G --mail-user=Jerry_Yang@hms.harvard.edu \
                         --wrap="{0}"'.format(longString)
     os.system(sCommand)
 
